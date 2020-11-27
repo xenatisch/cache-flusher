@@ -1,0 +1,134 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "nameprefix": {
+            "type": "String"
+        },
+        "location": {
+            "defaultValue": "UKSouth",
+            "type": "string"
+        },
+        "environment": {
+            "type": "string"
+        },
+        "sku-function-webplan": {
+            "type": "object"
+        },
+        "AppInsights-InstrumentationKey": {
+            "type": "string"
+        }
+    },
+    "variables": {
+        "name-function": "[concat(parameters('nameprefix'), 'funccacheflush')]",
+        "name-webplan-function": "[concat(parameters('nameprefix'), 'funcplancacheflush')]",
+        "name-storage-function": "[concat(parameters('nameprefix'), 'fstorecf')]",
+        "sku-storage": {
+            "name": "Standard_LRS",
+            "tier": "Standard"
+        }
+    },
+    "resources": [
+        {
+            "type": "Microsoft.Web/serverfarms",
+            "apiVersion": "2018-02-01",
+            "name": "[variables('name-webplan-function')]",
+            "location": "[parameters('location')]",
+            "sku": "[parameters('sku-function-webplan')]",
+            "properties": {
+                "reserved": true
+            },
+            "tags": {
+                "C19-Environment": "[parameters('environment')]"
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites",
+            "apiVersion": "2018-11-01",
+            "name": "[variables('name-function')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/serverfarms', variables('name-webplan-function'))]",
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('name-storage-function'))]"
+            ],
+            "kind": "functionapp,linux",
+            "identity": {
+                "type": "SystemAssigned"
+            },
+            "tags": {
+                "C19-Environment": "[parameters('environment')]",
+                "C19-Resource-Type": "function-cacheflush"
+            },
+            "properties": {
+                "enabled": true,
+                "siteConfig": {
+                    "appSettings": [
+                        {
+                            "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+                            "value": "[parameters('AppInsights-InstrumentationKey')]"
+                        },
+                        {
+                            "name": "AzureWebJobsStorage",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('name-storage-function'), ';AccountKey=', listKeys(variables('name-storage-function'),'2019-06-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "DOTNET"
+                        },
+                        {
+                            "name": "FUNCTIONS_EXTENSION_VERSION",
+                            "value": "~3"
+                        }
+                    ]
+                },
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('name-webplan-function'))]"
+            }
+        },
+        {
+            "type": "Microsoft.Web/sites/config",
+            "apiVersion": "2018-11-01",
+            "name": "[concat(variables('name-function'), '/web')]",
+            "location": "[parameters('location')]",
+            "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', variables('name-function'))]"
+            ],
+            "properties": {
+                "cors": {
+                    "allowedOrigins": [
+                        "*"
+                    ]
+                }
+            }
+        },
+        {
+            "type": "Microsoft.Storage/storageAccounts",
+            "apiVersion": "2019-06-01",
+            "name": "[variables('name-storage-function')]",
+            "location": "[parameters('location')]",
+            "sku": "[variables('sku-storage')]",
+            "kind": "StorageV2",
+            "properties": {
+                "minimumTlsVersion": "TLS1_2",
+                "allowBlobPublicAccess": true,
+                "supportsHttpsTrafficOnly": true,
+                "encryption": {
+                    "services": {
+                        "file": {
+                            "keyType": "Account",
+                            "enabled": true
+                        },
+                        "blob": {
+                            "keyType": "Account",
+                            "enabled": true
+                        }
+                    },
+                    "keySource": "Microsoft.Storage"
+                },
+                "accessTier": "Hot"
+            },
+            "tags": {
+                "C19-Environment": "[parameters('environment')]"
+            }
+        }
+    ]
+}
