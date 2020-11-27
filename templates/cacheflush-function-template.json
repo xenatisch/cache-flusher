@@ -39,7 +39,7 @@
             "location": "[parameters('location')]",
             "sku": "[parameters('sku-function-webplan')]",
             "properties": {
-                "reserved": true
+                "kind": "functionapp"
             },
             "tags": {
                 "C19-Environment": "[parameters('environment')]"
