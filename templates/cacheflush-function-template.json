@@ -54,7 +54,7 @@
                 "[resourceId('Microsoft.Web/serverfarms', variables('name-webplan-function'))]",
                 "[resourceId('Microsoft.Storage/storageAccounts', variables('name-storage-function'))]"
             ],
-            "kind": "functionapp,linux",
+            "kind": "functionapp",
             "identity": {
                 "type": "SystemAssigned"
             },
