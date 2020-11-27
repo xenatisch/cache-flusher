@@ -5,6 +5,9 @@
         "nameprefix": {
             "type": "String"
         },
+        "tenantId": {
+            "type": "String"
+        },
         "location": {
             "defaultValue": "UKSouth",
             "type": "string"
@@ -73,11 +76,15 @@
                         },
                         {
                             "name": "FUNCTIONS_WORKER_RUNTIME",
-                            "value": "DOTNET"
+                            "value": "dotnet"
                         },
                         {
                             "name": "FUNCTIONS_EXTENSION_VERSION",
                             "value": "~3"
+                        },
+                        {
+                            "name": "tenantId",
+                            "value": "[parameters('tenantId')]"
                         }
                     ]
                 },
