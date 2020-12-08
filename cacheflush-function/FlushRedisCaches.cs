@@ -1,9 +1,11 @@
 using System;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.Azure.WebJobs.Extensions.EventGrid;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
@@ -14,6 +16,8 @@ using Microsoft.Azure.Management.ResourceManager.Fluent.Core;
 using Microsoft.Azure.Management.ResourceManager.Fluent.Authentication;
 using Microsoft.Rest;
 using StackExchange.Redis;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace Coronavirus.CacheFlush
 {
@@ -25,12 +29,86 @@ namespace Coronavirus.CacheFlush
             ILogger log)
         {
             string environment = "";
+
+            environment = req.Query["environment"];
+
+            log.LogInformation($"{nameof(FlushCachesInEnvironment)} HTTP trigger function received a request to flush cached in env={environment}");
+
+            var result = await FlushCache(environment, log);
+            if (result.success)
+            {
+                return new OkObjectResult(result.message);
+            }
+            else
+            {
+                return new StatusCodeResult(500);
+            }
+        }
+
+        [FunctionName(nameof(BlobEventTrigger))]
+        public static async Task BlobEventTrigger([EventGridTrigger] JObject eventGridEvent, ILogger log)
+        {
+            log.LogInformation(eventGridEvent.ToString(Formatting.Indented));
+            dynamic eventJson = (dynamic)eventGridEvent;
             try
             {
-                environment = req.Query["environment"];
+                string topic = eventJson.topic;
+                string eventType = eventJson.eventType;
+                string blobPath = eventJson.subject;
 
-                log.LogInformation($"{nameof(FlushCachesInEnvironment)} HTTP trigger function received a request to flush cached in env={environment}");
+                if (!topic.Contains("Microsoft.Storage/storageAccounts"))
+                {
+                    log.LogWarning("Wrong event topic {topic}. Expected Microsoft.Storage/storageAccounts", topic);
+                    return;
+                }
 
+                if (eventType != "Microsoft.Storage.BlobCreated")
+                {
+                    log.LogWarning("Wrong event type {eventType}. Expected Microsoft.Storage.BlobCreated", eventType);
+                    return;
+                }
+
+                const string expectedBlobName = "assets/dispatch/website_timestamp";
+                if (!blobPath.EndsWith(expectedBlobName))
+                {
+                    log.LogInformation("Wrong blob {blob}. Only reacting on changes to {blobName} file", blobPath, expectedBlobName);
+                    return;
+                }
+
+                var storageAccountName = topic.Split('/').Last();
+
+                const string pattern = "/resourceGroups/.*-.*-(?<env>.*)/providers";
+                var regex = new Regex(pattern);
+                var matches = regex.Match(topic);
+                if (!string.IsNullOrEmpty(matches.Groups["env"]?.Value))
+                {
+                    var environment = matches.Groups["env"].Value;
+                    log.LogInformation("Starting cache flush for environment {environment}", environment);
+                    var result = await FlushCache(environment, log);
+                    if (result.success)
+                    {
+                        log.LogInformation(result.message);
+                    }
+                    else
+                    {
+                        log.LogError(result.message);
+                    }
+                }
+                else
+                {
+                    log.LogWarning("Could not parse environment name from topic {topic}. Ignoring event.", topic);
+                }
+            }
+            catch (Exception e)
+            {
+                log.LogError(e, "Exception during processing");
+            }
+        }
+
+        private static async Task<(bool success, string message)> FlushCache(string environment, ILogger log)
+        {
+            try
+            {
                 var tenantId = Environment.GetEnvironmentVariable("tenantId");
                 var azureServiceTokenProvider = new AzureServiceTokenProvider();
                 var token = await azureServiceTokenProvider.GetAccessTokenAsync("https://management.azure.com", tenantId);
@@ -44,10 +122,10 @@ namespace Coronavirus.CacheFlush
                 // List Redis Caches and select by tag for the environment
                 var caches = (await azure.RedisCaches.ListAsync())?.Where(c => c.Tags.Any(tag => tag.Key == "C19-Environment" && tag.Value == environment));
 
-                if(caches == null || caches.Count() == 0)
+                if (caches == null || caches.Count() == 0)
                 {
                     log.LogError("No caches found for environment={environment}", environment);
-                    return new BadRequestObjectResult($"No caches found for environment={environment}");
+                    return (false, $"No caches found for environment={environment}");
                 }
 
                 var count = 0;
@@ -72,12 +150,12 @@ namespace Coronavirus.CacheFlush
                 }
 
                 log.LogInformation("Finished flushing {count} caches for environment={environment}", count, environment);
-                return new OkObjectResult($"Successfully flushed {count} caches for environment={environment}");
+                return (true, $"Successfully flushed {count} caches for environment={environment}");
             }
             catch (Exception e)
             {
                 log.LogError(e, "Error during flushing caches for environment={environment}", environment);
-                return new StatusCodeResult(500);
+                return (false, $"Error during flushing caches for environment={environment}");
             }
         }
     }
