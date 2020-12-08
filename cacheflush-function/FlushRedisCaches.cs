@@ -24,15 +24,13 @@ namespace Coronavirus.CacheFlush
 {
     public static class FlushRedisCaches
     {
+        static string environment = Environment.GetEnvironmentVariable("ENVIRONMENT");
+
         [FunctionName(nameof(FlushCachesInEnvironment))]
         public static async Task<IActionResult> FlushCachesInEnvironment(
             [HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req,
             ILogger log)
         {
-            string environment = "";
-
-            environment = req.Query["environment"];
-
             log.LogInformation($"{nameof(FlushCachesInEnvironment)} HTTP trigger function received a request to flush cached in env={environment}");
 
             var result = await FlushCache(environment, log);
@@ -51,8 +49,7 @@ namespace Coronavirus.CacheFlush
         [FunctionName(nameof(BlobTrigger))]
         public static async Task BlobTrigger([BlobTrigger(TimestampBlobPath, Connection = "DataStorageConnectionstring")] CloudBlockBlob blob, ILogger log)
         {
-            var environment = Environment.GetEnvironmentVariable("ENVIRONMENT");
-            log.LogInformation("Function {name} was triggered for environment {environment}  change of blob {blobUri}", nameof(BlobTrigger), environment, blob.Uri);
+            log.LogInformation("Function {name} was triggered for environment {environment} change of blob {blobUri}", nameof(BlobTrigger), environment, blob.Uri);
             try
             {
                 log.LogInformation("Starting cache flush for environment {environment}", environment);
