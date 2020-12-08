@@ -18,6 +18,7 @@ using Microsoft.Rest;
 using StackExchange.Redis;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using Microsoft.Azure.Storage.Blob;
 
 namespace Coronavirus.CacheFlush
 {
@@ -45,66 +46,117 @@ namespace Coronavirus.CacheFlush
             }
         }
 
-        [FunctionName(nameof(BlobEventTrigger))]
-        public static async Task BlobEventTrigger([EventGridTrigger] JObject eventGridEvent, ILogger log)
+        private const string TimestampBlobPath = "publicdata/assets/dispatch/website_timestamp";
+
+        [FunctionName(nameof(BlobTriggerDev))]
+        public static async Task BlobTriggerDev([BlobTrigger(TimestampBlobPath, Connection = "DevDataStorageConnectionstring")] CloudBlockBlob blob, ILogger log)
         {
-            log.LogInformation(eventGridEvent.ToString(Formatting.Indented));
-            dynamic eventJson = (dynamic)eventGridEvent;
+            await BlobTriggerInternal(blob, "dev", log);
+        }
+
+        [FunctionName(nameof(BlobTriggerTest))]
+        public static async Task BlobTriggerTest([BlobTrigger(TimestampBlobPath, Connection = "TestDataStorageConnectionstring")] CloudBlockBlob blob, ILogger log)
+        {
+            await BlobTriggerInternal(blob, "test", log);
+        }
+
+        [FunctionName(nameof(BlobTriggerStaging))]
+        public static async Task BlobTriggerStaging([BlobTrigger(TimestampBlobPath, Connection = "StagingDataStorageConnectionstring")] CloudBlockBlob blob, ILogger log)
+        {
+            await BlobTriggerInternal(blob, "staging", log);
+        }
+
+        [FunctionName(nameof(BlobTriggerProd))]
+        public static async Task BlobTriggerProd([BlobTrigger(TimestampBlobPath, Connection = "ProdDataStorageConnectionstring")] CloudBlockBlob blob, ILogger log)
+        {
+            await BlobTriggerInternal(blob, "prod", log);
+        }
+
+        private static async Task BlobTriggerInternal(CloudBlockBlob blob, string environment, ILogger log)
+        {
+            log.LogInformation("Function {name} was triggered for environment {environment}  change of blob {blobUri}", nameof(BlobTriggerInternal), environment, blob.Uri);
             try
             {
-                string topic = eventJson.topic;
-                string eventType = eventJson.eventType;
-                string blobPath = eventJson.subject;
-
-                if (!topic.Contains("Microsoft.Storage/storageAccounts"))
+                log.LogInformation("Starting cache flush for environment {environment}", environment);
+                var result = await FlushCache(environment, log);
+                if (result.success)
                 {
-                    log.LogWarning("Wrong event topic {topic}. Expected Microsoft.Storage/storageAccounts", topic);
-                    return;
-                }
-
-                if (eventType != "Microsoft.Storage.BlobCreated")
-                {
-                    log.LogWarning("Wrong event type {eventType}. Expected Microsoft.Storage.BlobCreated", eventType);
-                    return;
-                }
-
-                const string expectedBlobName = "assets/dispatch/website_timestamp";
-                if (!blobPath.EndsWith(expectedBlobName))
-                {
-                    log.LogInformation("Wrong blob {blob}. Only reacting on changes to {blobName} file", blobPath, expectedBlobName);
-                    return;
-                }
-
-                var storageAccountName = topic.Split('/').Last();
-
-                const string pattern = "/resourceGroups/.*-.*-(?<env>.*)/providers";
-                var regex = new Regex(pattern);
-                var matches = regex.Match(topic);
-                if (!string.IsNullOrEmpty(matches.Groups["env"]?.Value))
-                {
-                    var environment = matches.Groups["env"].Value;
-                    log.LogInformation("Starting cache flush for environment {environment}", environment);
-                    var result = await FlushCache(environment, log);
-                    if (result.success)
-                    {
-                        log.LogInformation(result.message);
-                    }
-                    else
-                    {
-                        log.LogError(result.message);
-                    }
+                    log.LogInformation(result.message);
                 }
                 else
                 {
-                    log.LogWarning("Could not parse environment name from topic {topic}. Ignoring event.", topic);
+                    log.LogError(result.message);
                 }
+
             }
             catch (Exception e)
             {
                 log.LogError(e, "Exception during processing");
             }
         }
+        /*
+        ** Commented out for now as EventGrid does not work currently with Object-replicated storage accounts
 
+                [FunctionName(nameof(BlobEventTrigger))]
+                public static async Task BlobEventTrigger([EventGridTrigger] JObject eventGridEvent, ILogger log)
+                {
+                    log.LogInformation(eventGridEvent.ToString(Formatting.Indented));
+                    dynamic eventJson = (dynamic)eventGridEvent;
+                    try
+                    {
+                        string topic = eventJson.topic;
+                        string eventType = eventJson.eventType;
+                        string blobPath = eventJson.subject;
+
+                        if (!topic.Contains("Microsoft.Storage/storageAccounts"))
+                        {
+                            log.LogWarning("Wrong event topic {topic}. Expected Microsoft.Storage/storageAccounts", topic);
+                            return;
+                        }
+
+                        if (eventType != "Microsoft.Storage.BlobCreated")
+                        {
+                            log.LogWarning("Wrong event type {eventType}. Expected Microsoft.Storage.BlobCreated", eventType);
+                            return;
+                        }
+
+                        const string expectedBlobName = "assets/dispatch/website_timestamp";
+                        if (!blobPath.EndsWith(expectedBlobName))
+                        {
+                            log.LogInformation("Wrong blob {blob}. Only reacting on changes to {blobName} file", blobPath, expectedBlobName);
+                            return;
+                        }
+
+                        var storageAccountName = topic.Split('/').Last();
+
+                        const string pattern = "/resourceGroups/.*-.*-(?<env>.*)/providers";
+                        var regex = new Regex(pattern);
+                        var matches = regex.Match(topic);
+                        if (!string.IsNullOrEmpty(matches.Groups["env"]?.Value))
+                        {
+                            var environment = matches.Groups["env"].Value;
+                            log.LogInformation("Starting cache flush for environment {environment}", environment);
+                            var result = await FlushCache(environment, log);
+                            if (result.success)
+                            {
+                                log.LogInformation(result.message);
+                            }
+                            else
+                            {
+                                log.LogError(result.message);
+                            }
+                        }
+                        else
+                        {
+                            log.LogWarning("Could not parse environment name from topic {topic}. Ignoring event.", topic);
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        log.LogError(e, "Exception during processing");
+                    }
+                }
+        */
         private static async Task<(bool success, string message)> FlushCache(string environment, ILogger log)
         {
             try
@@ -124,7 +176,6 @@ namespace Coronavirus.CacheFlush
 
                 if (caches == null || caches.Count() == 0)
                 {
-                    log.LogError("No caches found for environment={environment}", environment);
                     return (false, $"No caches found for environment={environment}");
                 }
 
@@ -149,7 +200,6 @@ namespace Coronavirus.CacheFlush
                     }
                 }
 
-                log.LogInformation("Finished flushing {count} caches for environment={environment}", count, environment);
                 return (true, $"Successfully flushed {count} caches for environment={environment}");
             }
             catch (Exception e)
