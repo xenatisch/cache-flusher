@@ -29,7 +29,15 @@
         "sku-storage": {
             "name": "Standard_LRS",
             "tier": "Standard"
-        }
+        },
+        "dev-datastorage-name": "c19dashduksdatastore",
+        "dev-datastorage-resourceId": "[resourceId('rg-datastore-dev', 'Microsoft.Storage/storageAccounts', variables('dev-datastorage-name'))]",
+        "test-datastorage-name": "c19dashtuksdatastore",
+        "test-datastorage-resourceId": "[resourceId('rg-datastore-test', 'Microsoft.Storage/storageAccounts', variables('test-datastorage-name'))]",
+        "staging-datastorage-name": "c19dashsuksdatastore",
+        "staging-datastorage-resourceId": "[resourceId('rg-datastore-staging', 'Microsoft.Storage/storageAccounts', variables('staging-datastorage-name'))]",
+        "prod-datastorage-name": "c19dashpuksdatastore",
+        "prod-datastorage-resourceId": "[resourceId('rg-datastore-prod', 'Microsoft.Storage/storageAccounts', variables('prod-datastorage-name'))]"
     },
     "resources": [
         {
@@ -85,6 +93,22 @@
                         {
                             "name": "tenantId",
                             "value": "[parameters('tenantId')]"
+                        },
+                        {
+                            "name": "DevDataStorageConnectionstring",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('dev-datastorage-name'), ';AccountKey=', listKeys(variables('dev-datastorage-resourceId'),'2019-06-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "TestDataStorageConnectionstring",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('test-datastorage-name'), ';AccountKey=', listKeys(variables('test-datastorage-resourceId'),'2019-06-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "StagingDataStorageConnectionstring",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('staging-datastorage-name'), ';AccountKey=', listKeys(variables('staging-datastorage-resourceId'),'2019-06-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "ProdDataStorageConnectionstring",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('prod-datastorage-name'), ';AccountKey=', listKeys(variables('prod-datastorage-resourceId'),'2019-06-01').keys[0].value)]"
                         }
                     ]
                 },
