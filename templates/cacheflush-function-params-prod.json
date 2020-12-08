@@ -12,9 +12,6 @@
         "size": "Y1",
         "family": "Y"
       }
-    },
-    "AppInsights-InstrumentationKey": {
-      "value": "30e32605-68b5-4b9f-9275-95846b08d445"
     }
   }
 }
