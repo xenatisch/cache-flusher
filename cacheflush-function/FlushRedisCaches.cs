@@ -48,33 +48,11 @@ namespace Coronavirus.CacheFlush
 
         private const string TimestampBlobPath = "publicdata/assets/dispatch/website_timestamp";
 
-        [FunctionName(nameof(BlobTriggerDev))]
-        public static async Task BlobTriggerDev([BlobTrigger(TimestampBlobPath, Connection = "DevDataStorageConnectionstring")] CloudBlockBlob blob, ILogger log)
+        [FunctionName(nameof(BlobTrigger))]
+        public static async Task BlobTrigger([BlobTrigger(TimestampBlobPath, Connection = "DataStorageConnectionstring")] CloudBlockBlob blob, ILogger log)
         {
-            await BlobTriggerInternal(blob, "dev", log);
-        }
-
-        [FunctionName(nameof(BlobTriggerTest))]
-        public static async Task BlobTriggerTest([BlobTrigger(TimestampBlobPath, Connection = "TestDataStorageConnectionstring")] CloudBlockBlob blob, ILogger log)
-        {
-            await BlobTriggerInternal(blob, "test", log);
-        }
-
-        [FunctionName(nameof(BlobTriggerStaging))]
-        public static async Task BlobTriggerStaging([BlobTrigger(TimestampBlobPath, Connection = "StagingDataStorageConnectionstring")] CloudBlockBlob blob, ILogger log)
-        {
-            await BlobTriggerInternal(blob, "staging", log);
-        }
-
-        [FunctionName(nameof(BlobTriggerProd))]
-        public static async Task BlobTriggerProd([BlobTrigger(TimestampBlobPath, Connection = "ProdDataStorageConnectionstring")] CloudBlockBlob blob, ILogger log)
-        {
-            await BlobTriggerInternal(blob, "prod", log);
-        }
-
-        private static async Task BlobTriggerInternal(CloudBlockBlob blob, string environment, ILogger log)
-        {
-            log.LogInformation("Function {name} was triggered for environment {environment}  change of blob {blobUri}", nameof(BlobTriggerInternal), environment, blob.Uri);
+            var environment = Environment.GetEnvironmentVariable("ENVIRONMENT");
+            log.LogInformation("Function {name} was triggered for environment {environment}  change of blob {blobUri}", nameof(BlobTrigger), environment, blob.Uri);
             try
             {
                 log.LogInformation("Starting cache flush for environment {environment}", environment);
