@@ -31,9 +31,9 @@ namespace Coronavirus.CacheFlush
             [HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req,
             ILogger log)
         {
-            log.LogInformation($"{nameof(FlushCachesInEnvironment)} HTTP trigger function received a request to flush cached in env={environment}");
+            log.LogInformation($"{nameof(FlushCachesInEnvironment)} HTTP trigger function received a request to flush caches in env={environment}");
 
-            var result = await FlushCache(environment, log);
+            var result = await FlushCaches(environment, log);
             if (result.success)
             {
                 return new OkObjectResult(result.message);
@@ -53,16 +53,7 @@ namespace Coronavirus.CacheFlush
             try
             {
                 log.LogInformation("Starting cache flush for environment {environment}", environment);
-                var result = await FlushCache(environment, log);
-                if (result.success)
-                {
-                    log.LogInformation(result.message);
-                }
-                else
-                {
-                    log.LogError(result.message);
-                }
-
+                var result = await FlushCaches(environment, log);
             }
             catch (Exception e)
             {
@@ -132,10 +123,12 @@ namespace Coronavirus.CacheFlush
                     }
                 }
         */
-        private static async Task<(bool success, string message)> FlushCache(string environment, ILogger log)
+        
+        private static async Task<(bool success, string message)> FlushCaches(string environment, ILogger log)
         {
             try
             {
+                // Get auth token through MSI
                 var tenantId = Environment.GetEnvironmentVariable("tenantId");
                 var azureServiceTokenProvider = new AzureServiceTokenProvider();
                 var token = await azureServiceTokenProvider.GetAccessTokenAsync("https://management.azure.com", tenantId);
@@ -174,7 +167,7 @@ namespace Coronavirus.CacheFlush
                         }
                     }
                 }
-
+                log.LogInformation("Successfully flushed {count} caches for environment={environment}", count, environment);
                 return (true, $"Successfully flushed {count} caches for environment={environment}");
             }
             catch (Exception e)

@@ -5,8 +5,8 @@
     <RootNamespace>cacheflush_function</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.Azure.Management.Fluent" Version="1.36.0" />
-    <PackageReference Include="Microsoft.Azure.Management.Redis.Fluent" Version="1.36.0" />
+    <PackageReference Include="Microsoft.Azure.Management.Fluent" Version="1.36.1" />
+    <PackageReference Include="Microsoft.Azure.Management.Redis.Fluent" Version="1.36.1" />
     <PackageReference Include="Microsoft.Azure.Services.AppAuthentication" Version="1.6.0" />
     <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.EventGrid" Version="2.1.0" />
     <PackageReference Include="Microsoft.Azure.WebJobs.Extensions.Storage" Version="4.0.3" />
