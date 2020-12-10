@@ -128,22 +128,26 @@ namespace Coronavirus.CacheFlush
         {
             try
             {
+                log.LogInformation("Acquiring AAD token");
                 // Get auth token through MSI
                 var tenantId = Environment.GetEnvironmentVariable("tenantId");
                 var azureServiceTokenProvider = new AzureServiceTokenProvider();
                 var token = await azureServiceTokenProvider.GetAccessTokenAsync("https://management.azure.com", tenantId);
                 var tokenCredentials = new TokenCredentials(token);
+                log.LogInformation("Got AAD token. Creating Azure client");
                 var azure = Azure
                     .Configure()
                     .WithLogLevel(HttpLoggingDelegatingHandler.Level.Basic)
                     .Authenticate(new AzureCredentials(tokenCredentials, tokenCredentials, tenantId, AzureEnvironment.AzureGlobalCloud))
                     .WithDefaultSubscription();
 
+                log.LogInformation($"Listing caches by tag 'C19-Environment'={environment}");
                 // List Redis Caches and select by tag for the environment
                 var caches = (await azure.RedisCaches.ListAsync())?.Where(c => c.Tags.Any(tag => tag.Key == "C19-Environment" && tag.Value == environment));
 
                 if (caches == null || caches.Count() == 0)
                 {
+                    log.LogWarning("No caches found for environment={environment}", environment);
                     return (false, $"No caches found for environment={environment}");
                 }
 
