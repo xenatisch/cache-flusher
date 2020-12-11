@@ -1,8 +1,13 @@
 using System;
 using System.Linq;
+using System.Diagnostics;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.WebJobs;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Azure.WebJobs.Extensions.EventGrid;
@@ -18,16 +23,24 @@ using Microsoft.Rest;
 using StackExchange.Redis;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using Microsoft.Azure.Storage.Blob;
 
 namespace Coronavirus.CacheFlush
 {
-    public static class FlushRedisCaches
+    public class FlushRedisCaches
     {
+
+        private readonly TelemetryClient telemetryClient;
+
+        /// Using dependency injection will guarantee that you use the same configuration for telemetry collected automatically and manually.
+        public FlushRedisCaches(TelemetryConfiguration telemetryConfiguration)
+        {
+            this.telemetryClient = new TelemetryClient(telemetryConfiguration);
+        }
+
         static string environment = Environment.GetEnvironmentVariable("ENVIRONMENT");
 
         [FunctionName(nameof(FlushCachesInEnvironment))]
-        public static async Task<IActionResult> FlushCachesInEnvironment(
+        public async Task<IActionResult> FlushCachesInEnvironment(
             [HttpTrigger(AuthorizationLevel.Function, "get")] HttpRequest req,
             ILogger log)
         {
@@ -47,7 +60,7 @@ namespace Coronavirus.CacheFlush
         private const string TimestampBlobPath = "publicdata/assets/dispatch/website_timestamp";
 
         [FunctionName(nameof(BlobTrigger))]
-        public static async Task BlobTrigger([BlobTrigger(TimestampBlobPath, Connection = "DataStorageConnectionstring")] CloudBlockBlob blob, ILogger log)
+        public async Task BlobTrigger([BlobTrigger(TimestampBlobPath, Connection = "DataStorageConnectionstring")] CloudBlockBlob blob, ILogger log)
         {
             log.LogInformation("Function {name} was triggered for environment {environment} change of blob {blobUri}", nameof(BlobTrigger), environment, blob.Uri);
             try
@@ -64,7 +77,7 @@ namespace Coronavirus.CacheFlush
         ** Commented out for now as EventGrid does not work currently with Object-replicated storage accounts
 
                 [FunctionName(nameof(BlobEventTrigger))]
-                public static async Task BlobEventTrigger([EventGridTrigger] JObject eventGridEvent, ILogger log)
+                public async Task BlobEventTrigger([EventGridTrigger] JObject eventGridEvent, ILogger log)
                 {
                     log.LogInformation(eventGridEvent.ToString(Formatting.Indented));
                     dynamic eventJson = (dynamic)eventGridEvent;
@@ -123,8 +136,8 @@ namespace Coronavirus.CacheFlush
                     }
                 }
         */
-        
-        private static async Task<(bool success, string message)> FlushCaches(string environment, ILogger log)
+
+        private async Task<(bool success, string message)> FlushCaches(string environment, ILogger log)
         {
             try
             {
@@ -166,7 +179,18 @@ namespace Coronavirus.CacheFlush
                         var server = connection.GetServer(endpoint);
                         if (!server.IsReplica)
                         {
+                            var sw = Stopwatch.StartNew();
                             await server.FlushAllDatabasesAsync();
+                            sw.Stop();
+                            var dependency = new DependencyTelemetry
+                            {
+                                Name = "FLUSHALL",
+                                Type = "Redis",
+                                Target = endpoint.ToString(),
+                                Duration = sw.Elapsed,
+                                Success = true
+                            };
+                            this.telemetryClient.TrackDependency(dependency);
                             count++;
                         }
                     }
