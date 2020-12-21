@@ -46,7 +46,7 @@ namespace Coronavirus.CacheFlush
         {
             log.LogInformation($"{nameof(FlushCachesInEnvironment)} HTTP trigger function received a request to flush caches in env={environment}");
 
-            var result = await FlushCaches(environment, "uksouth,ukwest", log);
+            var result = await FlushCaches(environment, "UK South,UK West", log);
             if (result.success)
             {
                 return new OkObjectResult(result.message);
@@ -62,13 +62,13 @@ namespace Coronavirus.CacheFlush
         [FunctionName(nameof(BlobTriggerPrimaryRegion))]
         public async Task BlobTriggerPrimaryRegion([BlobTrigger(TimestampBlobPath, Connection = "DataStorageConnectionstringPrimary")] CloudBlockBlob blob, ILogger log)
         {
-            await BlobTriggerInternal(blob, nameof(BlobTriggerPrimaryRegion), "uksouth", log);
+            await BlobTriggerInternal(blob, nameof(BlobTriggerPrimaryRegion), "UK South", log);
         }
 
         [FunctionName(nameof(BlobTriggerSecondaryRegion))]
         public async Task BlobTriggerSecondaryRegion([BlobTrigger(TimestampBlobPath, Connection = "DataStorageConnectionstringSecondary")] CloudBlockBlob blob, ILogger log)
         {
-            await BlobTriggerInternal(blob, nameof(BlobTriggerSecondaryRegion), "ukwest", log);
+            await BlobTriggerInternal(blob, nameof(BlobTriggerSecondaryRegion), "UK West", log);
         }
 
         private async Task BlobTriggerInternal(CloudBlockBlob blob, string functionName, string region, ILogger log)
@@ -169,7 +169,7 @@ namespace Coronavirus.CacheFlush
                 log.LogInformation($"Listing caches by tag 'C19-Environment'={environment} in regions={regions}");
 
                 // List Redis Caches and select by tag for the environment
-                var caches = (await azure.RedisCaches.ListAsync())?.Where(c => c.Tags.Any(tag => tag.Key == "C19-Environment" && tag.Value == environment) && regions.Contains(c.RegionName));
+                var caches = (await azure.RedisCaches.ListAsync())?.Where(c => c.Tags.Any(tag => tag.Key == "C19-Environment" && tag.Value == environment) && regions.Contains(c.RegionName, StringComparison.InvariantCultureIgnoreCase));
 
                 if (caches == null || caches.Count() == 0)
                 {
