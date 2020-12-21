@@ -101,8 +101,12 @@
                             "value": "[parameters('environment')]"
                         },
                         {
-                            "name": "DataStorageConnectionstring",
-                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('datastorage-name'), ';AccountKey=', listKeys(variables('datastorage-resourceId'),'2019-06-01').keys[0].value)]"
+                            "name": "DataStorageConnectionstringPrimary",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('datastorage-name'), ';BlobEndpoint=https://', variables('datastorage-name'), '.blob.core.windows.net;AccountKey=', listKeys(variables('datastorage-resourceId'),'2019-06-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "DataStorageConnectionstringSecondary",
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('datastorage-name'), ';BlobEndpoint=https://', variables('datastorage-name'), '-secondary.blob.core.windows.net;AccountKey=', listKeys(variables('datastorage-resourceId'),'2019-06-01').keys[0].value)]"
                         }
                     ]
                 },
