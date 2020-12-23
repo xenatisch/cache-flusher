@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.Extensibility;
@@ -9,6 +10,7 @@ using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Azure.Storage.Blob;
 using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Azure.WebJobs.Extensions.EventGrid;
 using Microsoft.AspNetCore.Http;
@@ -60,16 +62,23 @@ namespace Coronavirus.CacheFlush
         private const string TimestampBlobPath = "publicdata/assets/dispatch/website_timestamp";
 
         [FunctionName(nameof(BlobTriggerPrimaryRegion))]
-        public async Task BlobTriggerPrimaryRegion([BlobTrigger(TimestampBlobPath, Connection = "DataStorageConnectionstringPrimary")] CloudBlockBlob blob, ILogger log)
+        public async Task BlobTriggerPrimaryRegion([BlobTrigger(TimestampBlobPath, Connection = "DataStorageConnectionstringPrimary")] CloudBlockBlob blob,
+        [DurableClient] IDurableOrchestrationClient starter,
+         ILogger log)
         {
-            await BlobTriggerInternal(blob, nameof(BlobTriggerPrimaryRegion), "UK South", log);
+            //await BlobTriggerInternal(blob, nameof(BlobTriggerPrimaryRegion), "UK South,UK West", log);
+
+            var durableInstanceId = await starter.StartNewAsync(nameof(CacheFlushOrchestrator), input: "3");
+            log.LogInformation("Started durable orchestrator with instanceId={instanceId}", durableInstanceId);
         }
 
+        /*
         [FunctionName(nameof(BlobTriggerSecondaryRegion))]
         public async Task BlobTriggerSecondaryRegion([BlobTrigger(TimestampBlobPath, Connection = "DataStorageConnectionstringSecondary")] CloudBlockBlob blob, ILogger log)
         {
             await BlobTriggerInternal(blob, nameof(BlobTriggerSecondaryRegion), "UK West", log);
         }
+
 
         private async Task BlobTriggerInternal(CloudBlockBlob blob, string functionName, string region, ILogger log)
         {
@@ -82,6 +91,33 @@ namespace Coronavirus.CacheFlush
             catch (Exception e)
             {
                 log.LogError(e, "Exception during processing");
+            }
+        }
+        */
+
+        [FunctionName(nameof(CacheFlushOrchestrator))]
+        public async Task CacheFlushOrchestrator(
+            [OrchestrationTrigger] IDurableOrchestrationContext context, ILogger log)
+        {
+            log = context.CreateReplaySafeLogger(log);
+            var counter = context.GetInput<int>();
+
+            log.LogInformation($"{nameof(CacheFlushOrchestrator)} received a call with counter={counter}");
+
+            if (counter > 0)
+            {
+                log.LogInformation("Calling activity function");
+                await context.CallActivityAsync(nameof(FlushCachesActivity), "UK South,UK West");
+                log.LogInformation($"Activity function finished");
+
+                var nextRun = context.CurrentUtcDateTime.AddSeconds(30);
+                counter--;
+                if (counter > 0)
+                {
+                    log.LogInformation($"Next run will start at {nextRun}");
+                    await context.CreateTimer(nextRun, CancellationToken.None);
+                    context.StartNewOrchestration(nameof(CacheFlushOrchestrator), counter--);
+                }
             }
         }
 
@@ -148,6 +184,22 @@ namespace Coronavirus.CacheFlush
                     }
                 }
         */
+
+        [FunctionName(nameof(FlushCachesActivity))]
+        public async Task FlushCachesActivity(
+            [ActivityTrigger] string regions, ILogger log)
+        {
+            log.LogInformation("Function {name} was triggered for environment {environment}", nameof(FlushCachesActivity), environment);
+            try
+            {
+                log.LogInformation("Starting cache flush for environment {environment} in regions {region}", environment, regiosn);
+                var result = await FlushCaches(environment, regions, log);
+            }
+            catch (Exception e)
+            {
+                log.LogError(e, "Exception during processing");
+            }
+        }
 
         private async Task<(bool success, string message)> FlushCaches(string environment, string regions, ILogger log)
         {
