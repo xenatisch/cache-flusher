@@ -17,7 +17,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 
 using Microsoft.Azure.Services.AppAuthentication;
-using Microsoft.Azure.Management.Fluent;
 using Microsoft.Azure.Management.ResourceManager.Fluent;
 using Microsoft.Azure.Management.ResourceManager.Fluent.Core;
 using Microsoft.Azure.Management.ResourceManager.Fluent.Authentication;
@@ -68,7 +67,9 @@ namespace Coronavirus.CacheFlush
         {
             //await BlobTriggerInternal(blob, nameof(BlobTriggerPrimaryRegion), "UK South,UK West", log);
 
-            var durableInstanceId = await starter.StartNewAsync(nameof(CacheFlushOrchestrator), input: "3");
+            string flushRepeats = Environment.GetEnvironmentVariable("FLUSH_REPEATS") ?? "3";
+
+            var durableInstanceId = await starter.StartNewAsync(nameof(CacheFlushOrchestrator), input: flushRepeats);
             log.LogInformation("Started durable orchestrator with instanceId={instanceId}", durableInstanceId);
         }
 
@@ -110,13 +111,18 @@ namespace Coronavirus.CacheFlush
                 await context.CallActivityAsync(nameof(FlushCachesActivity), "UK South,UK West");
                 log.LogInformation($"Activity function finished");
 
-                var nextRun = context.CurrentUtcDateTime.AddSeconds(30);
+                string delay = Environment.GetEnvironmentVariable("REPEAT_DELAY_SECONDS") ?? "30";
+                var nextRun = context.CurrentUtcDateTime.AddSeconds(int.Parse(delay));
                 counter--;
                 if (counter > 0)
                 {
-                    log.LogInformation($"Next run will start at {nextRun}");
+                    log.LogInformation($"Next run will start at {nextRun}. {counter} runs remaining");
                     await context.CreateTimer(nextRun, CancellationToken.None);
                     context.StartNewOrchestration(nameof(CacheFlushOrchestrator), counter--);
+                }
+                else
+                {
+                    log.LogInformation("Orchestrator done. No more runs left.");
                 }
             }
         }
@@ -192,7 +198,7 @@ namespace Coronavirus.CacheFlush
             log.LogInformation("Function {name} was triggered for environment {environment}", nameof(FlushCachesActivity), environment);
             try
             {
-                log.LogInformation("Starting cache flush for environment {environment} in regions {region}", environment, regiosn);
+                log.LogInformation("Starting cache flush for environment {environment} in regions {region}", environment, regions);
                 var result = await FlushCaches(environment, regions, log);
             }
             catch (Exception e)
@@ -212,7 +218,7 @@ namespace Coronavirus.CacheFlush
                 var token = await azureServiceTokenProvider.GetAccessTokenAsync("https://management.azure.com", tenantId);
                 var tokenCredentials = new TokenCredentials(token);
                 log.LogInformation("Got AAD token. Creating Azure client");
-                var azure = Azure
+                var azure = Microsoft.Azure.Management.Fluent.Azure
                     .Configure()
                     .WithLogLevel(HttpLoggingDelegatingHandler.Level.Basic)
                     .Authenticate(new AzureCredentials(tokenCredentials, tokenCredentials, tenantId, AzureEnvironment.AzureGlobalCloud))
