@@ -199,7 +199,7 @@ namespace Coronavirus.CacheFlush
                             {
                                 Name = "FLUSHALL",
                                 Type = "Redis",
-                                Target = endpoint.ToString(),
+                                Target = endpoint.ToString().Replace("Unspecified/", ""), // for some reason the endpoint hostname starts with "unspecified/..."
                                 Duration = sw.Elapsed,
                                 Success = true
                             };
