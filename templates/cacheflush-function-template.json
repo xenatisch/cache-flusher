@@ -107,6 +107,14 @@
                         {
                             "name": "DataStorageConnectionstringSecondary",
                             "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('datastorage-name'), ';BlobEndpoint=https://', variables('datastorage-name'), '-secondary.blob.core.windows.net;AccountKey=', listKeys(variables('datastorage-resourceId'),'2019-06-01').keys[0].value)]"
+                        },
+                        {
+                            "name": "FLUSH_REPEATS",
+                            "value": "3"
+                        },
+                        {
+                            "name": "REPEAT_DELAY_SECONDS",
+                            "value": "30"
                         }
                     ]
                 },
