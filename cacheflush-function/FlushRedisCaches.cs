@@ -188,7 +188,8 @@ namespace Coronavirus.CacheFlush
 
                     foreach (var endpoint in connection.GetEndPoints())
                     {
-                        log.LogInformation("Flushing database on server {endpoint}", endpoint);
+                        var endpointName = endpoint.ToString().Replace("Unspecified/", "");
+                        log.LogInformation("Flushing database on server {endpoint}", endpointName);
                         var server = connection.GetServer(endpoint);
                         if (!server.IsReplica)
                         {
@@ -199,7 +200,7 @@ namespace Coronavirus.CacheFlush
                             {
                                 Name = "FLUSHALL",
                                 Type = "Redis",
-                                Target = endpoint.ToString().Replace("Unspecified/", ""), // for some reason the endpoint hostname starts with "unspecified/..."
+                                Target = endpointName, // for some reason the endpoint hostname starts with "unspecified/..."
                                 Duration = sw.Elapsed,
                                 Success = true
                             };
