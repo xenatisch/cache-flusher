@@ -20,6 +20,9 @@
         },
         "AppInsights-InstrumentationKey": {
             "type": "string"
+        },
+        "ServiceBusConnectionString":{
+            "type": "securestring"
         }
     },
     "variables": {
@@ -29,9 +32,7 @@
         "sku-storage": {
             "name": "Standard_LRS",
             "tier": "Standard"
-        },
-        "datastorage-name": "[concat('c19dash', first(parameters('environment')), 'uksdatastore')]",
-        "datastorage-resourceId": "[resourceId(concat('rg-datastore-', parameters('environment')), 'Microsoft.Storage/storageAccounts', variables('datastorage-name'))]"
+        }
     },
     "resources": [
         {
@@ -101,16 +102,20 @@
                             "value": "[parameters('environment')]"
                         },
                         {
-                            "name": "DataStorageConnectionstringPrimary",
-                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('datastorage-name'), ';BlobEndpoint=https://', variables('datastorage-name'), '.blob.core.windows.net;AccountKey=', listKeys(variables('datastorage-resourceId'),'2019-06-01').keys[0].value)]"
+                            "name": "SB_TOPIC_NAME",
+                            "value": "data-despatch"
                         },
                         {
-                            "name": "DataStorageConnectionstringSecondary",
-                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('datastorage-name'), ';BlobEndpoint=https://', variables('datastorage-name'), '-secondary.blob.core.windows.net;AccountKey=', listKeys(variables('datastorage-resourceId'),'2019-06-01').keys[0].value)]"
+                            "name": "SB_SUBSCRIPTION_NAME",
+                            "value": "cache-flusher"
+                        },
+                        {
+                            "name": "ServiceBusConnectionString",
+                            "value": "[parameters('ServiceBusConnectionString')]"
                         },
                         {
                             "name": "FLUSH_REPEATS",
-                            "value": "3"
+                            "value": "1"
                         },
                         {
                             "name": "REPEAT_DELAY_SECONDS",
