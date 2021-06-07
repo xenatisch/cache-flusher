@@ -58,43 +58,16 @@ namespace Coronavirus.CacheFlush
             }
         }
 
-        private const string TimestampBlobPath = "publicdata/assets/dispatch/website_timestamp";
-
-        [FunctionName(nameof(BlobTriggerPrimaryRegion))]
-        public async Task BlobTriggerPrimaryRegion([BlobTrigger(TimestampBlobPath, Connection = "DataStorageConnectionstringPrimary")] CloudBlockBlob blob,
+        [FunctionName(nameof(ServieBusTrigger))]
+        public async Task ServieBusTrigger([ServiceBusTrigger("%SB_TOPIC_NAME%", "%SB_SUBSCRIPTION_NAME%", Connection = "ServiceBusConnectionString")] string queueItem,
         [DurableClient] IDurableOrchestrationClient starter,
          ILogger log)
         {
-            //await BlobTriggerInternal(blob, nameof(BlobTriggerPrimaryRegion), "UK South,UK West", log);
-
-            string flushRepeats = Environment.GetEnvironmentVariable("FLUSH_REPEATS") ?? "3";
+            string flushRepeats = Environment.GetEnvironmentVariable("FLUSH_REPEATS") ?? "1";
 
             var durableInstanceId = await starter.StartNewAsync(nameof(CacheFlushOrchestrator), input: flushRepeats);
             log.LogInformation("Started durable orchestrator with instanceId={instanceId}", durableInstanceId);
         }
-
-        /*
-        [FunctionName(nameof(BlobTriggerSecondaryRegion))]
-        public async Task BlobTriggerSecondaryRegion([BlobTrigger(TimestampBlobPath, Connection = "DataStorageConnectionstringSecondary")] CloudBlockBlob blob, ILogger log)
-        {
-            await BlobTriggerInternal(blob, nameof(BlobTriggerSecondaryRegion), "UK West", log);
-        }
-
-
-        private async Task BlobTriggerInternal(CloudBlockBlob blob, string functionName, string region, ILogger log)
-        {
-            log.LogInformation("Function {name} was triggered for environment {environment} change of blob {blobUri}", functionName, environment, blob.Uri);
-            try
-            {
-                log.LogInformation("Starting cache flush for environment {environment} in region {region}", environment, region);
-                var result = await FlushCaches(environment, region, log);
-            }
-            catch (Exception e)
-            {
-                log.LogError(e, "Exception during processing");
-            }
-        }
-        */
 
         [FunctionName(nameof(CacheFlushOrchestrator))]
         public async Task CacheFlushOrchestrator(
@@ -126,70 +99,6 @@ namespace Coronavirus.CacheFlush
                 }
             }
         }
-
-        /*
-        ** Commented out for now as EventGrid does not work currently with Object-replicated storage accounts
-
-                [FunctionName(nameof(BlobEventTrigger))]
-                public async Task BlobEventTrigger([EventGridTrigger] JObject eventGridEvent, ILogger log)
-                {
-                    log.LogInformation(eventGridEvent.ToString(Formatting.Indented));
-                    dynamic eventJson = (dynamic)eventGridEvent;
-                    try
-                    {
-                        string topic = eventJson.topic;
-                        string eventType = eventJson.eventType;
-                        string blobPath = eventJson.subject;
-
-                        if (!topic.Contains("Microsoft.Storage/storageAccounts"))
-                        {
-                            log.LogWarning("Wrong event topic {topic}. Expected Microsoft.Storage/storageAccounts", topic);
-                            return;
-                        }
-
-                        if (eventType != "Microsoft.Storage.BlobCreated")
-                        {
-                            log.LogWarning("Wrong event type {eventType}. Expected Microsoft.Storage.BlobCreated", eventType);
-                            return;
-                        }
-
-                        const string expectedBlobName = "assets/dispatch/website_timestamp";
-                        if (!blobPath.EndsWith(expectedBlobName))
-                        {
-                            log.LogInformation("Wrong blob {blob}. Only reacting on changes to {blobName} file", blobPath, expectedBlobName);
-                            return;
-                        }
-
-                        var storageAccountName = topic.Split('/').Last();
-
-                        const string pattern = "/resourceGroups/.*-.*-(?<env>.*)/providers";
-                        var regex = new Regex(pattern);
-                        var matches = regex.Match(topic);
-                        if (!string.IsNullOrEmpty(matches.Groups["env"]?.Value))
-                        {
-                            var environment = matches.Groups["env"].Value;
-                            log.LogInformation("Starting cache flush for environment {environment}", environment);
-                            var result = await FlushCache(environment, log);
-                            if (result.success)
-                            {
-                                log.LogInformation(result.message);
-                            }
-                            else
-                            {
-                                log.LogError(result.message);
-                            }
-                        }
-                        else
-                        {
-                            log.LogWarning("Could not parse environment name from topic {topic}. Ignoring event.", topic);
-                        }
-                    }
-                    catch (Exception e)
-                    {
-                        log.LogError(e, "Exception during processing");
-                    }
-                }
-        */
 
         [FunctionName(nameof(FlushCachesActivity))]
         public async Task FlushCachesActivity(
