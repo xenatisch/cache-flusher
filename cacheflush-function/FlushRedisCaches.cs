@@ -161,7 +161,7 @@ namespace Coronavirus.CacheFlush
                         if (!server.IsReplica)
                         {
                             var sw = Stopwatch.StartNew();
-                            await server.FlushAllDatabasesAsync();
+                            await server.FlushDatabaseAsync(0);
                             sw.Stop();
                             var dependency = new DependencyTelemetry
                             {
