@@ -214,7 +214,11 @@ namespace Coronavirus.CacheFlush
                             "environment={environment}", 
                     count, keysRemoved, environment
                     );
-                return (true, $"Successfully flushed {count} caches for environment={environment}");
+                return (
+                    true,                     
+                    $"Successfully flushed {count} caches in db0 and cleared {keysRemoved} keys from db2 for " +
+                    $"environment={environment}"
+                );
             }
             catch (Exception e)
             {
