@@ -147,7 +147,8 @@ namespace Coronavirus.CacheFlush
                 }
 
                 var count = 0;
-
+                var keysRemoved = 0;
+                
                 foreach (var cache in caches)
                 {
                     var redisAccessKeys = cache.GetKeys();
@@ -190,6 +191,7 @@ namespace Coronavirus.CacheFlush
                         {
                             Task<bool> delTask = batch.KeyDeleteAsync(key, CommandFlags.FireAndForget);
                             deleteTasks.Add(delTask);
+                            keysRemoved++;
                         }
                         batch.Execute();
                         var tasks = deleteTasks.ToArray();
@@ -207,7 +209,11 @@ namespace Coronavirus.CacheFlush
 
                     }
                 }
-                log.LogInformation("Successfully flushed {count} caches for environment={environment}", count, environment);
+                log.LogInformation(
+                    "Successfully flushed {count} caches in db0 and cleared {keysRemoved} keys from db2 for " +
+                            "environment={environment}", 
+                    count, keysRemoved, environment
+                    );
                 return (true, $"Successfully flushed {count} caches for environment={environment}");
             }
             catch (Exception e)
