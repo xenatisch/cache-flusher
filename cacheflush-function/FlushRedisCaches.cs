@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Diagnostics;
 using System.Text.RegularExpressions;
@@ -14,6 +15,7 @@ using Microsoft.Azure.WebJobs.Extensions.DurableTask;
 using Microsoft.Azure.WebJobs.Extensions.Http;
 using Microsoft.Azure.WebJobs.Extensions.EventGrid;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Azure.KeyVault.Models;
 using Microsoft.Extensions.Logging;
 
 using Microsoft.Azure.Services.AppAuthentication;
@@ -158,22 +160,51 @@ namespace Coronavirus.CacheFlush
                         var endpointName = endpoint.ToString().Replace("Unspecified/", "");
                         log.LogInformation("Flushing database on server {endpoint}", endpointName);
                         var server = connection.GetServer(endpoint);
-                        if (!server.IsReplica)
+                        
+                        if (server.IsReplica)
                         {
-                            var sw = Stopwatch.StartNew();
-                            await server.FlushDatabaseAsync(0);
-                            sw.Stop();
-                            var dependency = new DependencyTelemetry
-                            {
-                                Name = "FLUSHALL",
-                                Type = "Redis",
-                                Target = endpointName, // for some reason the endpoint hostname starts with "unspecified/..."
-                                Duration = sw.Elapsed,
-                                Success = true
-                            };
-                            this.telemetryClient.TrackDependency(dependency);
-                            count++;
+                            continue;
                         }
+
+                        var swFlush = Stopwatch.StartNew();
+                        await server.FlushDatabaseAsync(0);
+                        swFlush.Stop();
+                        var flushTracker = new DependencyTelemetry
+                        {
+                            Name = "FLUSHALL",
+                            Type = "Redis",
+                            Target = endpointName, // for some reason the endpoint hostname starts with "unspecified/..."
+                            Duration = swFlush.Elapsed,
+                            Success = true
+                        };
+                        this.telemetryClient.TrackDependency(flushTracker);
+                        count++;
+
+                        // Clear non-area records
+                        var swDelete = Stopwatch.StartNew();
+                        var database = connection.GetDatabase(2);
+                        var keys = server.KeysAsync(2, "[^area]*", 200);
+                        List<Task> deleteTasks = new List<Task>();
+                        IBatch batch = database.CreateBatch();
+                        await foreach (var key in keys)
+                        {
+                            Task<bool> delTask = batch.KeyDeleteAsync(key, CommandFlags.FireAndForget);
+                            deleteTasks.Add(delTask);
+                        }
+                        batch.Execute();
+                        var tasks = deleteTasks.ToArray();
+                        Task.WaitAll(tasks);
+                        swDelete.Stop();
+                        var deleteTracker = new DependencyTelemetry
+                        {
+                            Name = "DEL",
+                            Type = "Redis",
+                            Target = endpointName,
+                            Duration = swDelete.Elapsed,
+                            Success = true
+                        };
+                        this.telemetryClient.TrackDependency(deleteTracker);
+
                     }
                 }
                 log.LogInformation("Successfully flushed {count} caches for environment={environment}", count, environment);
