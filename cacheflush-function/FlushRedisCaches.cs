@@ -60,8 +60,18 @@ namespace Coronavirus.CacheFlush
             }
         }
 
-        [FunctionName(nameof(ServieBusTrigger))]
-        public async Task ServieBusTrigger([ServiceBusTrigger("%SB_TOPIC_NAME%", "%SB_SUBSCRIPTION_NAME%", Connection = "ServiceBusConnectionString")] string queueItem,
+        [FunctionName(nameof(EventGridTrigger))]
+        public async Task EventGridTrigger([EventGridTrigger()] string queueItem,
+            [DurableClient] IDurableOrchestrationClient starter, ILogger log)
+        {
+            string flushRepeats = Environment.GetEnvironmentVariable("FLUSH_REPEATS") ?? "1";
+
+            var durableInstanceId = await starter.StartNewAsync(nameof(CacheFlushOrchestrator), input: flushRepeats);
+            log.LogInformation("Started durable orchestrator with instanceId={instanceId}", durableInstanceId);
+        }
+
+        [FunctionName(nameof(ServiceBusTrigger))]
+        public async Task ServiceBusTrigger([ServiceBusTrigger("%SB_TOPIC_NAME%", "%SB_SUBSCRIPTION_NAME%", Connection = "ServiceBusConnectionString")] string queueItem,
         [DurableClient] IDurableOrchestrationClient starter,
          ILogger log)
         {
