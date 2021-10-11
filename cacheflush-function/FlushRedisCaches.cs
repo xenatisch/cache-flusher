@@ -59,17 +59,7 @@ namespace Coronavirus.CacheFlush
                 return new StatusCodeResult(500);
             }
         }
-
-        [FunctionName(nameof(EventGridTrigger))]
-        public async Task EventGridTrigger([EventGridTrigger()] string queueItem,
-            [DurableClient] IDurableOrchestrationClient starter, ILogger log)
-        {
-            string flushRepeats = Environment.GetEnvironmentVariable("FLUSH_REPEATS") ?? "1";
-
-            var durableInstanceId = await starter.StartNewAsync(nameof(CacheFlushOrchestrator), input: flushRepeats);
-            log.LogInformation("Started durable orchestrator with instanceId={instanceId}", durableInstanceId);
-        }
-
+        
         [FunctionName(nameof(ServiceBusTrigger))]
         public async Task ServiceBusTrigger([ServiceBusTrigger("%SB_TOPIC_NAME%", "%SB_SUBSCRIPTION_NAME%", Connection = "ServiceBusConnectionString")] string queueItem,
         [DurableClient] IDurableOrchestrationClient starter,
@@ -96,7 +86,7 @@ namespace Coronavirus.CacheFlush
                 await context.CallActivityAsync(nameof(FlushCachesActivity), "UK South,UK West");
                 log.LogInformation($"Activity function finished");
 
-                string delay = Environment.GetEnvironmentVariable("REPEAT_DELAY_SECONDS") ?? "30";
+                string delay = Environment.GetEnvironmentVariable("REPEAT_DELAY_SECONDS") ?? "5";
                 var nextRun = context.CurrentUtcDateTime.AddSeconds(int.Parse(delay));
                 counter--;
                 if (counter > 0)
