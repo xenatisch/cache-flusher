@@ -4,9 +4,11 @@ param location string = 'UKSouth'
 param environment string
 param sku_function_webplan object
 param AppInsights_InstrumentationKey string
+param etl_nameprefix string
+param etl_resource_group string
 
-@secure()
-param ServiceBusConnectionString string
+// @secure()
+// param ServiceBusConnectionString string
 
 var name_function_var = '${nameprefix}funccacheflush'
 var name_webplan_function_var = '${nameprefix}funcplancacheflush'
@@ -14,6 +16,20 @@ var name_storage_function_var = '${nameprefix}fstorecf'
 var sku_storage = {
   name: 'Standard_LRS'
 }
+
+var listener_endpoint = '${service_bus_resource.id}/AuthorizationRules/${sender_auth.name}'
+
+
+resource service_bus_resource 'Microsoft.ServiceBus/namespaces@2021-06-01-preview' existing = {
+  name: '${etl_nameprefix}-events'
+  scope: resourceGroup(etl_resource_group)
+}
+
+resource sender_auth 'Microsoft.ServiceBus/namespaces/AuthorizationRules@2021-06-01-preview' existing = {
+  parent: service_bus_resource
+  name: 'Listener'
+}
+
 
 resource name_webplan_function 'Microsoft.Web/serverfarms@2018-02-01' = {
   name: name_webplan_function_var
@@ -82,7 +98,7 @@ resource name_function 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'ServiceBusConnectionString'
-          value: ServiceBusConnectionString
+          value: 'Endpoint=sb://${service_bus_resource.name}.servicebus.windows.net/;SharedAccessKeyName=${sender_auth.name};SharedAccessKey=${listKeys(listener_endpoint, service_bus_resource.apiVersion).primaryKey}'
         }
         {
           name: 'FLUSH_REPEATS'
