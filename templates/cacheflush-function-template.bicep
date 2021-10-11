@@ -7,14 +7,18 @@ param AppInsights_InstrumentationKey string
 param etl_nameprefix string
 param etl_resource_group string
 
-// @secure()
-// param ServiceBusConnectionString string
-
 var name_function_var = '${nameprefix}funccacheflush'
 var name_webplan_function_var = '${nameprefix}funcplancacheflush'
 var name_storage_function_var = '${nameprefix}fstorecf'
 var sku_storage = {
   name: 'Standard_LRS'
+}
+var tags = {
+  Environemnt: toLower(environment) == 'prod' ? 'Production' : environment
+  Criticality: toLower(environment) == 'prod' ? 'Tier 1' : toLower(environment) == 'dev' ? 'Tier 2' : 'Tier 3'
+  Owner: 'UKHSA - COVID19'
+  Org: 'UKHSA'
+  Application: 'UK Coronavirus Dashboard'
 }
 
 var listener_endpoint = '${service_bus_resource.id}/AuthorizationRules/${sender_auth.name}'
@@ -36,9 +40,7 @@ resource name_webplan_function 'Microsoft.Web/serverfarms@2018-02-01' = {
   location: location
   sku: sku_function_webplan
   properties: {}
-  tags: {
-    'C19-Environment': environment
-  }
+  tags: tags
 }
 
 resource name_function 'Microsoft.Web/sites@2018-11-01' = {
@@ -48,10 +50,7 @@ resource name_function 'Microsoft.Web/sites@2018-11-01' = {
   identity: {
     type: 'SystemAssigned'
   }
-  tags: {
-    'C19-Environment': environment
-    'C19-Resource-Type': 'function-cacheflush'
-  }
+  tags: tags
   properties: {
     enabled: true
     siteConfig: {
@@ -132,6 +131,7 @@ resource name_function_web 'Microsoft.Web/sites/config@2018-11-01' = {
 resource name_storage_function 'Microsoft.Storage/storageAccounts@2019-06-01' = {
   name: name_storage_function_var
   location: location
+  tags: tags
   sku: sku_storage
   kind: 'StorageV2'
   properties: {
@@ -152,8 +152,5 @@ resource name_storage_function 'Microsoft.Storage/storageAccounts@2019-06-01' = 
       keySource: 'Microsoft.Storage'
     }
     accessTier: 'Hot'
-  }
-  tags: {
-    'C19-Environment': environment
   }
 }
