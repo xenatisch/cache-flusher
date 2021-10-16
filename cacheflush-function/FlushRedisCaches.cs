@@ -167,12 +167,15 @@ namespace Coronavirus.CacheFlush
                             continue;
                         }
 
+                        // ToDo: 
+                        //   Remove: '*v[12]/data*' from db0
+                        //   Remove: '*/generic/soa/msoa/*' from db0
                         var swFlush = Stopwatch.StartNew();
                         await server.FlushDatabaseAsync(0);
                         swFlush.Stop();
                         var flushTracker = new DependencyTelemetry
                         {
-                            Name = "FLUSHALL",
+                            Name = "FLUSH",
                             Type = "Redis",
                             Target = endpointName, // for some reason the endpoint hostname starts with "unspecified/..."
                             Duration = swFlush.Elapsed,
@@ -184,10 +187,10 @@ namespace Coronavirus.CacheFlush
                         // Clear non-area records
                         var swDelete = Stopwatch.StartNew();
                         var database = connection.GetDatabase(2);
-                        var keys = server.KeysAsync(2, "[^area]*", 200);
+                        var db3Keys = server.KeysAsync(2, "[^area]*", 500);
                         List<Task> deleteTasks = new List<Task>();
                         IBatch batch = database.CreateBatch();
-                        await foreach (var key in keys)
+                        await foreach (var key in db3Keys)
                         {
                             Task<bool> delTask = batch.KeyDeleteAsync(key, CommandFlags.FireAndForget);
                             deleteTasks.Add(delTask);
