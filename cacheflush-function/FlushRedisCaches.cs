@@ -120,6 +120,22 @@ namespace Coronavirus.CacheFlush
 
         private async Task<(bool success, string message)> FlushCaches(string environment, string regions, ILogger log)
         {
+            string env;
+            switch ( environment.ToLower() )
+            {
+                case "prod":
+                    env = "Production";
+                    break;
+                case "dev":
+                case "staging":
+                case "test":
+                    env = environment;
+                    break;
+                default:
+                    env = "dev";
+                    break;
+            }
+                
             try
             {
                 log.LogInformation("Acquiring AAD token");
@@ -138,7 +154,7 @@ namespace Coronavirus.CacheFlush
                 log.LogInformation($"Listing caches by tag 'C19-Environment'={environment} in regions={regions}");
 
                 // List Redis Caches and select by tag for the environment
-                var caches = (await azure.RedisCaches.ListAsync())?.Where(c => c.Tags.Any(tag => tag.Key == "C19-Environment" && tag.Value == environment) && regions.Contains(c.RegionName, StringComparison.InvariantCultureIgnoreCase));
+                var caches = (await azure.RedisCaches.ListAsync())?.Where(c => c.Tags.Any(tag => tag.Key == "Environment" && tag.Value == env) && regions.Contains(c.RegionName, StringComparison.InvariantCultureIgnoreCase));
 
                 if (caches == null || caches.Count() == 0)
                 {
