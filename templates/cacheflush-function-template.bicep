@@ -89,11 +89,11 @@ resource name_function 'Microsoft.Web/sites@2018-11-01' = {
         }
         {
           name: 'SB_TOPIC_NAME'
-          value: 'data-despatch'
+          value: 'cache_flusher'
         }
         {
           name: 'SB_SUBSCRIPTION_NAME'
-          value: 'cache-flusher'
+          value: 'flush_all'
         }
         {
           name: 'ServiceBusConnectionString'
